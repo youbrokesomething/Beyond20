@@ -190,8 +190,7 @@ function rollAbilityOrSavingThrow(paneClass, rollType) {
     const ability_string = $("." + paneClass + " .ct-sidebar__heading").text();
     const ability_name = ability_string.split(" ")[0];
     const ability = ability_abbreviations[ability_name];
-    let modifier = $(`.${paneClass}__modifier .ct-signed-number,.${paneClass}__modifier .ddbc-signed-number,.${paneClass}__modifier span[class*='styles_numberDisplay']`).text();
-
+    let modifier = $(`.${paneClass}__modifier .ct-signed-number,.${paneClass}__modifier .ddbc-signed-number, span[class*='styles_modifier'] span[class*='styles_numberDisplay']`).text();
 
     if (rollType == "ability") {
         // Remarkable Athelete and Jack of All Trades don't stack, we give priority to RA instead of JoaT because
@@ -282,18 +281,18 @@ function rollAbilityOrSavingThrow(paneClass, rollType) {
 }
 
 function rollAbilityCheck() {
-    rollAbilityOrSavingThrow("ct-ability-pane", "ability");
+    rollAbilityOrSavingThrow("b20-ability-pane", "ability");
 }
 
 function rollSavingThrow() {
-    rollAbilityOrSavingThrow("ct-ability-saving-throws-pane", "saving-throw");
+    rollAbilityOrSavingThrow("b20-ability-saving-throws-pane", "saving-throw");
 }
 
 function rollInitiative() {
-    let initiative = $(".ct-initiative-box__value .ddbc-signed-number, .ct-initiative-box__value span[class*='styles_numberDisplay']").text();
+    let initiative = $(".ct-combat__summary-group--initiative .integrated-dice__container, span[class*='styles_value'] span[class*='styles_numberDisplay']").text();
     let advantage = $(".ct-initiative-box__advantage").length > 0;
     if (initiative == "") {
-        initiative = $(".ct-combat-mobile__extra--initiative .ct-combat-mobile__extra-value").text();
+        initiative = $(".ct-combat-mobile__extras section div[class*='styles_value'] .integrated-dice__container span[class*='styles_numberDisplay']").text();
         advantage = $(".ct-combat-mobile__advantage").length > 0;
     }
     //console.log("Initiative " + ("with" if (advantage else "without") + " advantage ) { " + initiative);
@@ -1747,11 +1746,11 @@ async function execute(paneClass, {force_to_hit_only = false, force_damages_only
             pauseHotkeyHandling();
             if (["ct-skill-pane", "ct-custom-skill-pane"].includes(paneClass))
                 await rollSkillCheck(paneClass);
-            else if (paneClass == "ct-ability-pane")
+            else if (paneClass == "b20-ability-pane")
                 await rollAbilityCheck();
-            else if (paneClass == "ct-ability-saving-throws-pane")
+            else if (paneClass == "b20-ability-saving-throws-pane")
                 await rollSavingThrow();
-            else if (paneClass == "ct-initiative-pane")
+            else if (paneClass == "b20-initiative-pane")
                 await rollInitiative();
             else if (paneClass == "ct-item-pane")
                 await rollItem(false, force_to_hit_only, force_damages_only, force_versatile, spell_group);
@@ -1877,9 +1876,9 @@ function injectRollButton(paneClass) {
     const pane = $(`.${paneClass}`);
     if (["ct-custom-skill-pane",
         "ct-skill-pane",
-        "ct-ability-pane",
-        "ct-ability-saving-throws-pane",
-        "ct-initiative-pane"].includes(paneClass)) {
+        "b20-ability-pane",
+        "b20-ability-saving-throws-pane",
+        "b20-initiative-pane"].includes(paneClass)) {
         if (isRollButtonAdded())
             return;
         addRollButtonEx(paneClass, ".ct-sidebar__heading");
@@ -2309,9 +2308,8 @@ function deactivateQuickRolls() {
     const spells = $(".ct-spells-spell .ct-spells-spell__action,.ddbc-spells-spell .ddbc-spells-spell__action");
     const spells_to_hit = $(".ct-spells-spell .ct-spells-spell__tohit .integrated-dice__container, .ddbc-spells-spell .ddbc-spells-spell__tohit .integrated-dice__container");
     const spells_damage = $(".ct-spells-spell .ct-spells-spell__damage .integrated-dice__container, .ddc-spells-spell .ddc-spells-spell__damage .integrated-dice__container");
-    let initiative = $(".ct-initiative-box__value .integrated-dice__container, .ct-combat-mobile__extra--initiative .ct-combat-mobile__extra-value .integrated-dice__container");
-    if (initiative.length === 0)
-        initiative = $(".ct-initiative-box__value .ddbc-signed-number, .ct-combat-mobile__extra--initiative .ct-combat-mobile__extra-value .ddbc-signed-number, .ct-initiative-box__value span[class*='styles_numberDisplay'], .ct-combat-mobile__extra--initiative .ct-combat-mobile__extra-value span[class*='styles_numberDisplay']");
+    const initiative = $(".ct-combat__summary-group--initiative div[class*='styles_value'] .integrated-dice__container, .ct-combat-tablet__extra--initiative .integrated-dice__container, .ct-combat-mobile__extras section div[class*='styles_value'] .integrated-dice__container");
+
     hideTooltipIfDestroyed();
     deactivateTooltipListeners(initiative);
     deactivateTooltipListeners(abilities);
@@ -2349,9 +2347,14 @@ function activateQuickRolls() {
         return;
 
     activateTooltipListeners(initiative, 'up', beyond20_tooltip, (el) => {
-        el.closest(".ct-initiative-box__value, .ct-combat-mobile__extra-value").trigger('click');
-        if ($(".ct-initiative-pane").length)
-            execute("ct-initiative-pane");
+        el.closest(".ct-combat__summary-group--initiative section[class*='styles_box'] div, section, div[class*='styles_label']").trigger('click');
+        
+        if(!$(".ct-sidebar__portal .ct-sidebar__header").parent().hasClass("b20-initiative-pane")) {
+            $(".ct-sidebar__portal .ct-sidebar__header").parent().addClass("b20-initiative-pane");
+        };
+
+        if ($(".b20-initiative-pane").length)
+            execute("b20-initiative-pane");
         else
             quick_roll = true;
     });
@@ -2361,9 +2364,12 @@ function activateQuickRolls() {
                 .find(".ct-ability-summary__heading .ct-ability-summary__label,.ddbc-ability-summary__heading .ddbc-ability-summary__label")
                 .trigger('click').text();
             // If same item, clicking will be a noop && it won't modify the document;
-            const pane_name = $(".ct-ability-pane .ct-sidebar__heading").text().split(" ")[0];
+            if(!$(".ct-sidebar__portal .ct-sidebar__header").parent().hasClass("b20-ability-pane")) {
+                $(".ct-sidebar__portal .ct-sidebar__header").parent().addClass("b20-ability-pane");
+            };
+            const pane_name = $(".b20-ability-pane .ct-sidebar__heading").text().split(" ")[0];
             if (name == pane_name)
-                execute("ct-ability-pane");
+                execute("b20-ability-pane");
             else
                 quick_roll = true;
         });
@@ -2375,9 +2381,12 @@ function activateQuickRolls() {
                 .find(".ct-saving-throws-summary__ability-name,.ddbc-saving-throws-summary__ability-name")
                 .trigger('click').text().slice(0, 3).toLowerCase();
             // If same spell, clicking will be a noop && it won't modify it;
-            const pane_name = $(".ct-ability-saving-throws-pane .ct-sidebar__heading").text().slice(0, 3).toLowerCase();
+            if(!$(".ct-sidebar__portal .ct-sidebar__header").parent().hasClass("b20-ability-saving-throws-pane")) {
+                $(".ct-sidebar__portal .ct-sidebar__header").parent().addClass("b20-ability-saving-throws-pane");
+            };
+            const pane_name = $(".b20-ability-saving-throws-pane .ct-sidebar__heading").text().slice(0, 3).toLowerCase();
             if (name == pane_name)
-                execute("ct-ability-saving-throws-pane");
+                execute("b20-ability-saving-throws-pane");
             else
                 quick_roll = true;
         });
@@ -2530,9 +2539,6 @@ function documentModified(mutations, observer) {
     const SUPPORTED_PANES = [
         "ct-custom-skill-pane",
         "ct-skill-pane",
-        "ct-ability-pane",
-        "ct-ability-saving-throws-pane",
-        "ct-initiative-pane",
         "ct-class-feature-pane",
         "ct-racial-trait-pane",
         "ct-feat-pane",
@@ -2551,18 +2557,56 @@ function documentModified(mutations, observer) {
         "ct-proficiencies-pane",
         "ct-character-manage-pane"
     ]
+
+    const SPECIAL_PANES = {
+        ability: "b20-ability-pane",
+        savingThrow: "b20-ability-saving-throws-pane",
+        initiative: "b20-initiative-pane"
+    }
+
+    const ABILITIES = [
+        "strength",
+        "dexterity",
+        "constitution",
+        "intelligence",
+        "wisdom",
+        "charisma",
+    ]
+
+    function handlePane(paneClass) {
+        console.log("Beyond20: New side panel is : " + paneClass);
+        injectRollButton(paneClass);
+        if (quick_roll) {
+            if (quick_roll_timeout > 0) clearTimeout(quick_roll_timeout);
+            quick_roll_timeout = setTimeout(() => executeQuickRoll(paneClass), 50);
+        }
+    }
     
     const pane = $(SUPPORTED_PANES.map(pane => `.${pane}`).join(","));
     if (pane.length > 0) {
-        for (let div = 0; div < pane.length; div++) {
-            const paneClass = pane[div].className;
-            console.log("Beyond20: New side panel is : " + paneClass);
-            injectRollButton(paneClass);
-            if (quick_roll) {
-                if (quick_roll_timeout > 0)
-                    clearTimeout(quick_roll_timeout);
-                quick_roll_timeout = setTimeout(() => executeQuickRoll(paneClass), 50);
+        pane.each((_, div) => handlePane(div.className));
+    } else {
+        const sidebar = $(".ct-sidebar__portal .ct-sidebar__header");
+        const sideBarHeader = sidebar.text().toLowerCase();
+    
+        if (sideBarHeader.startsWith("saving")) {
+            const paneClass = SPECIAL_PANES.savingThrow;
+            if (!sidebar.parent().hasClass(paneClass)) {
+                sidebar.parent().addClass(paneClass);
             }
+            handlePane(paneClass);
+        } else if (ABILITIES.some(ability => sideBarHeader.startsWith(ability))) {
+            const paneClass = SPECIAL_PANES.ability;
+            if (!sidebar.parent().hasClass(paneClass)) {
+                sidebar.parent().addClass(paneClass);
+            }
+            handlePane(paneClass);
+        } if (sideBarHeader.startsWith("initiative")) {
+            const paneClass = SPECIAL_PANES.initiative;
+            if (!sidebar.parent().hasClass(paneClass)) {
+                sidebar.parent().addClass(paneClass);
+            }
+            handlePane(paneClass);
         }
     }
 }
